@@ -1,0 +1,112 @@
+#!/bin/sh
+
+red(){
+    echo -e "\033[31m\033[01m$1\033[0m"
+}
+
+green(){
+    echo -e "\033[32m\033[01m$1\033[0m"
+}
+
+yellow(){
+    echo -e "\033[33m\033[01m$1\033[0m"
+}
+
+rm -f wgcf-account.toml wgcf-profile.conf
+echo | ./wgcf register
+chmod +x wgcf-account.toml
+
+clear
+yellow "璇烽?夋嫨闇?瑕佷娇鐢ㄧ殑 WARP 璐︽埛绫诲瀷"
+echo ""
+echo -e " ${GREEN}1.${PLAIN} WARP 鍏嶈垂璐︽埛 ${YELLOW}(榛樿)${PLAIN}"
+echo -e " ${GREEN}2.${PLAIN} WARP+"
+echo -e " ${GREEN}3.${PLAIN} WARP Teams"
+echo ""
+read -p "璇疯緭鍏ラ?夐」 [1-3]: " account_type
+if [[ $account_type == 2 ]]; then
+  yellow "鑾峰彇 CloudFlare WARP 璐﹀彿瀵嗛挜淇℃伅鏂规硶: "
+  green "鐢佃剳: 涓嬭浇骞跺畨瑁? CloudFlare WARP 鈫? 璁剧疆 鈫? 鍋忓ソ璁剧疆 鈫? 璐︽埛 鈫掑鍒跺瘑閽ュ埌鑴氭湰涓?"
+  green "鎵嬫満: 涓嬭浇骞跺畨瑁? 1.1.1.1 APP 鈫? 鑿滃崟 鈫? 璐︽埛 鈫? 澶嶅埗瀵嗛挜鍒拌剼鏈腑"
+  echo ""
+  yellow "閲嶈锛氳纭繚鎵嬫満鎴栫數鑴戠殑 1.1.1.1 APP 鐨勮处鎴风姸鎬佷负WARP+锛?"
+  echo ""
+  read -rp "杈撳叆 WARP 璐︽埛璁稿彲璇佸瘑閽? (26涓瓧绗?): " warpkey
+  until [[ $warpkey =~ ^[A-Z0-9a-z]{8}-[A-Z0-9a-z]{8}-[A-Z0-9a-z]{8}$ ]]; do
+    red "WARP 璐︽埛璁稿彲璇佸瘑閽ユ牸寮忚緭鍏ラ敊璇紝璇烽噸鏂拌緭鍏ワ紒"
+    read -rp "杈撳叆 WARP 璐︽埛璁稿彲璇佸瘑閽? (26涓瓧绗?): " warpkey
+  done
+  sed -i "s/license_key.*/license_key = \"$warpkey\"/g" wgcf-account.toml
+  read -rp "璇疯緭鍏ヨ嚜瀹氫箟璁惧鍚嶏紝濡傛湭杈撳叆鍒欎娇鐢ㄩ粯璁ら殢鏈鸿澶囧悕: " devicename
+  green "娉ㄥ唽 WARP+ 璐︽埛涓?, 濡備笅鏂规樉绀?: 400 Bad Request, 鍒欎娇鐢? WARP 鍏嶈垂鐗堣处鎴?"
+  if [[ -n $devicename ]]; then
+    ./wgcf update --name $(echo $devicename | sed s/[[:space:]]/_/g)
+  else
+    ./wgcf update
+  fi
+  ./wgcf generate
+elif [[ $account_type == 3 ]]; then
+  ./wgcf generate
+  chmod +x wgcf-profile.conf
+  
+  yellow "璇烽?夋嫨鐢宠 WARP Teams 璐︽埛鏂瑰紡"
+  echo ""
+  echo -e " ${GREEN}1.${PLAIN} 浣跨敤 Teams TOKEN ${YELLOW}(榛樿)${PLAIN}"
+  echo -e " ${GREEN}2.${PLAIN} 浣跨敤鎻愬彇鍑烘潵鐨? xml 閰嶇疆鏂囦欢"
+  echo ""
+  read -p "璇疯緭鍏ラ?夐」 [1-2]: " team_type
+
+  if [[ $team_type == 2 ]]; then
+    yellow "鑾峰彇 WARP Teams 璐︽埛 xml 閰嶇疆鏂囦欢鏂规硶锛歨ttps://blog.misaka.rest/2023/02/11/wgcfteam-config/"
+    yellow "璇峰皢鎻愬彇鍒扮殑 xml 閰嶇疆鏂囦欢涓婁紶鑷筹細https://gist.github.com"
+    read -rp "璇风矘璐? WARP Teams 璐︽埛閰嶇疆鏂囦欢閾炬帴锛?" teamconfigurl
+    if [[ -n $teamconfigurl ]]; then
+      teams_config=$(curl -sSL "$teamconfigurl" | sed "s/\"/\&quot;/g")
+      private_key=$(expr "$teams_config" : '.*private_key&quot;>\([^<]*\).*')
+      private_v6=$(expr "$teams_config" : '.*v6&quot;:&quot;\([^[&]*\).*')
+      sed -i "s#PrivateKey.*#PrivateKey = $private_key#g" wgcf-profile.conf;
+      sed -i "s#Address.*128#Address = $private_v6/128#g" wgcf-profile.conf;
+    else
+      red "鏈彁渚沇ARP Teams 璐︽埛閰嶇疆鏂囦欢閾炬帴锛岃剼鏈??鍑猴紒"
+      exit 1
+    fi
+  else
+    # 璇㈤棶鐢ㄦ埛 WARP Teams 璐︽埛 TOKEN锛屽苟鎻愮ず鑾峰彇鏂瑰紡
+    yellow "璇峰湪姝ょ綉绔欙細https://web--public--warp-team-api--coia-mfs4.code.run/ 鑾峰彇浣犵殑 WARP Teams 璐︽埛 TOKEN"
+    read -rp "璇疯緭鍏? WARP Teams 璐︽埛鐨? TOKEN锛?" teams_token
+
+    if [[ -n $teams_token ]]; then
+      # 鐢熸垚 WireGuard 鍏閽ュ強 WARP 璁惧 ID 鍜? FCM Token
+      private_key=$(wg genkey)
+      public_key=$(wg pubkey <<< "$private_key")
+      install_id=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 22)
+      fcm_token="${install_id}:APA91b$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 134)"
+
+      # 浣跨敤 CloudFlare API 鐢宠 Teams 閰嶇疆淇℃伅
+      team_result=$(curl --silent --location --tlsv1.3 --request POST 'https://api.cloudflareclient.com/v0a2158/reg' \
+        --header 'User-Agent: okhttp/3.12.1' \
+        --header 'CF-Client-Version: a-6.10-2158' \
+        --header 'Content-Type: application/json' \
+        --header "Cf-Access-Jwt-Assertion: ${team_token}" \
+        --data '{"key":"'${public_key}'","install_id":"'${install_id}'","fcm_token":"'${fcm_token}'","tos":"'$(date +"%Y-%m-%dT%H:%M:%S.%3NZ")'","model":"Linux","serial_number":"'${install_id}'","locale":"zh_CN"}')
+
+      # 鎻愬彇 WARP IPv6 鍐呯綉鍦板潃锛岀敤浜庢浛鎹? wgcf-profile.conf 鏂囦欢涓搴旂殑鍐呭
+      private_v6=$(expr "$team_result" : '.*"v6":[ ]*"\([^"]*\).*')
+      
+      sed -i "s#PrivateKey.*#PrivateKey = $private_key#g" wgcf-profile.conf;
+      sed -i "s#Address.*128#Address = $private_v6/128#g" wgcf-profile.conf;
+    fi
+  fi
+else
+  ./wgcf generate
+fi
+
+clear
+green "WGCF 鐨? WireGuard 閰嶇疆鏂囦欢宸茬敓鎴愭垚鍔燂紒"
+yellow "涓嬮潰鏄厤缃枃浠跺唴瀹癸細"
+red "$(cat wgcf-profile.conf)"
+echo ""
+yellow "涓嬮潰鏄厤缃枃浠跺垎浜簩缁寸爜锛?"
+qrencode -t ansiutf8 < wgcf-profile.conf
+echo ""
+yellow "璇峰湪鏈湴浣跨敤姝ゆ柟娉曪細https://blog.misaka.rest/2023/03/12/cf-warp-yxip/ 浼橀?夊彲鐢ㄧ殑 Endpoint IP"
